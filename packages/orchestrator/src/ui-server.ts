@@ -139,8 +139,18 @@ async function main() {
     }
 
     if (httpReq.url === "/api/health") {
+      // Reflect whether the chain service is settling live or mock.
+      let chainMode: Record<string, unknown> = { mode: "unknown" };
+      try {
+        const r = await fetch("http://localhost:3003/mode");
+        if (r.ok) chainMode = (await r.json()) as Record<string, unknown>;
+      } catch { /* chain not up; keep unknown */ }
       httpRes.writeHead(200, { "content-type": "application/json", ...cors });
-      return httpRes.end(JSON.stringify({ ok: true, services: { intake: 3001, negotiate: 3002, chain: 3003 } }));
+      return httpRes.end(JSON.stringify({
+        ok: true,
+        services: { intake: 3001, negotiate: 3002, chain: 3003 },
+        chain: chainMode,
+      }));
     }
 
     httpRes.writeHead(404, { "content-type": "application/json", ...cors });

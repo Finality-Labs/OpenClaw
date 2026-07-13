@@ -47,6 +47,7 @@
     <span>intake <code>:3001</code></span>
     <span>negotiate <code>:3002</code></span>
     <span>chain <code>:3003</code></span>
+    <span id="chainMode" class="chip" title="Settlement mode">mode: …</span>
   </div>
 </header>
 
@@ -91,6 +92,17 @@
 <script>
   const $ = (id) => document.getElementById(id);
   const btn = $("run");
+
+  // Show whether the chain service is settling live or mock.
+  (async () => {
+    try {
+      const h = await fetch("/api/health").then((r) => r.json());
+      const m = h.chain?.mode || "unknown";
+      const badge = $("chainMode");
+      badge.textContent = `settlement: ${m}` + (h.chain?.network ? ` (${h.chain.network})` : "");
+      badge.style.borderColor = m === "live" ? "#3fb950" : "#262d3d";
+    } catch {}
+  })();
 
   btn.onclick = async () => {
     btn.disabled = true; btn.textContent = "Running negotiation…";
