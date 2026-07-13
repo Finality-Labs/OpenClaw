@@ -24,6 +24,7 @@ import {
   fmtGoat,
 } from "./lib/live.ts";
 import { decodeEventLog } from "viem";
+import { appendPayment, appendReputation } from "./lib/data.ts";
 
 const SETTLE_WEI = 100_000_000_000_000n; // 0.0001 GOAT, trivial testnet amount
 
@@ -89,6 +90,17 @@ async function main() {
   await ctx.pc.waitForTransactionReceipt({ hash: settle.txHash as `0x${string}` });
   console.log(`   ✅ settlement confirmed on-chain\n`);
 
+  // Persist the real settlement as a dashboard payment record (proof = txHash).
+  await appendPayment({
+    agentId: agentId.toString(),
+    txHash: settle.txHash,
+    amountGoat: fmtGoat(SETTLE_WEI),
+    from: ctx.account.address,
+    to: seller,
+    ts: Date.now(),
+    explorerUrl: explorerTx(settle.txHash),
+  });
+
   const proof = {
     fromAddress: ctx.account.address,
     toAddress: seller,
@@ -124,6 +136,19 @@ async function main() {
     console.log(`   ↳ Off-chain fallback active (testnet3 Reputation Registry is a placeholder).`);
     console.log(`      Interface is ERC-8004-equivalent; will go on-chain automatically once deployed.\n`);
   }
+
+  // Persist the rating as a dashboard record (proof = real settle txHash).
+  await appendReputation({
+    agentId: agentId.toString(),
+    value: fbRes.summaryValue,
+    decimals: fbRes.summaryValueDecimals,
+    tag1: "deal",
+    tag2: "paid",
+    endpoint: "/deals",
+    feedbackHash: settle.txHash,
+    proofTxHash: settle.txHash,
+    ts: Date.now(),
+  });
 
   console.log("=== LIVE TEST RESULT ===");
   console.log(JSON.stringify({

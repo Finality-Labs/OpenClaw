@@ -6,4 +6,5 @@ target/
 coverage/
 .env
 .env.local
+data/
 .DS_Store
