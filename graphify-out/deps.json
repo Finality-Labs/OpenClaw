@@ -1,0 +1,100 @@
+{
+  "chain/src/app.ts": [
+    "chain/src/deals.ts",
+    "chain/src/safety.ts"
+  ],
+  "chain/src/deals.ts": [
+    "chain/src/mockFacilitator.ts",
+    "chain/src/reputation.ts",
+    "chain/src/safety.ts"
+  ],
+  "chain/src/index.ts": [
+    "chain/src/app.ts"
+  ],
+  "chain/src/mockFacilitator.ts": [],
+  "chain/src/reputation.ts": [],
+  "chain/src/safety.ts": [],
+  "chain/src/tests/deals.test.ts": [
+    "chain/src/app.ts",
+    "chain/src/mockFacilitator.ts",
+    "chain/src/reputation.ts"
+  ],
+  "chain/src/tests/reputation.test.ts": [
+    "chain/src/reputation.ts"
+  ],
+  "chain/src/tests/safety.test.ts": [
+    "chain/src/safety.ts"
+  ],
+  "intake/src/app.ts": [
+    "intake/src/matchmaker.ts",
+    "intake/src/routes.ts",
+    "intake/src/seed.ts",
+    "intake/src/store.ts"
+  ],
+  "intake/src/identity.ts": [],
+  "intake/src/index.ts": [
+    "intake/src/app.ts"
+  ],
+  "intake/src/matchmaker.ts": [
+    "intake/src/store.ts"
+  ],
+  "intake/src/routes.ts": [
+    "intake/src/identity.ts",
+    "intake/src/matchmaker.ts",
+    "intake/src/store.ts"
+  ],
+  "intake/src/seed.ts": [
+    "intake/src/store.ts"
+  ],
+  "intake/src/store.ts": [
+    "intake/src/types.ts"
+  ],
+  "intake/src/tests/api.test.ts": [
+    "intake/src/app.ts"
+  ],
+  "intake/src/tests/store.test.ts": [
+    "intake/src/identity.ts",
+    "intake/src/matchmaker.ts",
+    "intake/src/store.ts",
+    "intake/src/types.ts"
+  ],
+  "intake/src/types.ts": [],
+  "negotiate/src/index.ts": [
+    "negotiate/src/room.ts",
+    "negotiate/src/settle.ts"
+  ],
+  "negotiate/src/protocol.ts": [],
+  "negotiate/src/room.ts": [
+    "negotiate/src/protocol.ts"
+  ],
+  "negotiate/src/settle.ts": [
+    "negotiate/src/room.ts"
+  ],
+  "negotiate/src/tests/room.test.ts": [
+    "negotiate/src/room.ts"
+  ],
+  "negotiate/src/tests/server.test.ts": [
+    "negotiate/src/index.ts"
+  ],
+  "orchestrator/src/run-e2e.ts": [
+    "chain/src/reputation.ts",
+    "orchestrator/src/start-all.ts",
+    "reference-agent/src/negotiate.ts"
+  ],
+  "orchestrator/src/start-all.ts": [
+    "chain/src/app.ts",
+    "intake/src/app.ts",
+    "negotiate/src/index.ts"
+  ],
+  "reference-agent/src/index.ts": [
+    "reference-agent/src/negotiate.ts"
+  ],
+  "reference-agent/src/negotiate.ts": [],
+  "reference-agent/src/tests/e2e-negotiate.test.ts": [
+    "negotiate/src/index.ts",
+    "reference-agent/src/negotiate.ts"
+  ],
+  "reference-agent/src/tests/negotiate.test.ts": [
+    "reference-agent/src/negotiate.ts"
+  ]
+}

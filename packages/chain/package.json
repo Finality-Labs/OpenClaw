@@ -10,15 +10,16 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "fastify": "^4.28.0",
     "@fastify/cors": "^9.0.1",
-    "zod": "^3.23.0",
-    "viem": "^2.9.0"
+    "@goatnetwork/agentkit": "^0.2.2",
+    "fastify": "^4.28.0",
+    "viem": "^2.9.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.5",
+    "@types/node": "^20.14.0",
     "tsx": "^4.16.2",
-    "vitest": "^1.6.0",
-    "@types/node": "^20.14.0"
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
   }
 }

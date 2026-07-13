@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finality Agent Network — Control Panel</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.55 system-ui,-apple-system,sans-serif; background:#0b0e14; color:#d7dce5; }
+  header { padding:28px 32px 20px; border-bottom:1px solid #1c2230; }
+  h1 { margin:0; font-size:22px; letter-spacing:-0.3px; }
+  .tag { color:#6b7688; font-size:13px; margin-top:4px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#3fb950; margin-right:6px; vertical-align:middle; }
+  main { max-width:900px; margin:0 auto; padding:28px 32px; display:grid; gap:24px; }
+  .card { background:#11151f; border:1px solid #1c2230; border-radius:12px; padding:22px 24px; }
+  .card h2 { margin:0 0 16px; font-size:15px; color:#9aa4b5; text-transform:uppercase; letter-spacing:0.6px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  label { display:block; font-size:13px; color:#8b95a7; margin-bottom:6px; }
+  input, select { width:100%; background:#0b0e14; border:1px solid #262d3d; color:#e6eaf1; border-radius:8px;
+    padding:9px 11px; font-size:14px; }
+  input:focus, select:focus { outline:none; border-color:#3b82f6; }
+  .row2 { grid-column:1 / -1; }
+  button { margin-top:20px; width:100%; background:#2563eb; color:#fff; border:none; border-radius:9px;
+    padding:12px; font-size:15px; font-weight:600; cursor:pointer; }
+  button:hover { background:#1d4ed8; }
+  button:disabled { background:#1e2536; color:#5a6478; cursor:not-allowed; }
+  .result { display:none; }
+  .verdict { font-size:20px; font-weight:700; margin-bottom:4px; }
+  .verdict.ok { color:#3fb950; } .verdict.no { color:#f0883e; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:6px 18px; margin:12px 0; font-size:14px; }
+  .kv dt { color:#8b95a7; } .kv dd { margin:0; font-variant-numeric:tabular-nums; }
+  .log { background:#0b0e14; border:1px solid #1c2230; border-radius:8px; padding:12px 14px; margin-top:14px;
+    font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; color:#93a1b5; white-space:pre-wrap; max-height:280px; overflow:auto; }
+  .rep { display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; }
+  .chip { background:#0b0e14; border:1px solid #262d3d; border-radius:8px; padding:8px 12px; font-size:13px; }
+  .chip b { color:#e6eaf1; }
+  .services { display:flex; gap:18px; flex-wrap:wrap; font-size:13px; color:#7d8798; margin-top:6px; }
+  code { color:#7aa2f7; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Finality Agent Network</h1>
+  <div class="tag"><span class="dot"></span>Live control panel — initialize a deal between two AI agents</div>
+  <div class="services">
+    <span>intake <code>:3001</code></span>
+    <span>negotiate <code>:3002</code></span>
+    <span>chain <code>:3003</code></span>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Initialize a deal</h2>
+    <div class="grid">
+      <div>
+        <label>Resource</label>
+        <input id="resource" value="gpu">
+      </div>
+      <div>
+        <label>GPU requirement (optional)</label>
+        <input id="gpu" value="H100" placeholder="H100">
+      </div>
+      <div>
+        <label>Quantity (hours)</label>
+        <input id="qty" type="number" value="2" min="1">
+      </div>
+      <div></div>
+      <div>
+        <label>Buyer max price / unit ($)</label>
+        <input id="buyerMax" type="number" value="20" min="0">
+      </div>
+      <div>
+        <label>Seller floor price / unit ($)</label>
+        <input id="sellerFloor" type="number" value="15" min="0">
+      </div>
+    </div>
+    <button id="run">Run deal →</button>
+  </div>
+
+  <div class="card result" id="result">
+    <h2>Outcome</h2>
+    <div class="verdict" id="verdict"></div>
+    <dl class="kv" id="kv"></dl>
+    <div class="rep" id="rep"></div>
+    <div class="log" id="log"></div>
+  </div>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const btn = $("run");
+
+  btn.onclick = async () => {
+    btn.disabled = true; btn.textContent = "Running negotiation…";
+    const body = {
+      resource: $("resource").value.trim(),
+      gpu: $("gpu").value.trim(),
+      qty: +$("qty").value,
+      buyerMax: +$("buyerMax").value,
+      sellerFloor: +$("sellerFloor").value,
+    };
+    try {
+      const res = await fetch("/api/run-deal", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      render(data);
+    } catch (e) {
+      render({ error: e.message });
+    } finally {
+      btn.disabled = false; btn.textContent = "Run deal →";
+    }
+  };
+
+  function render(d) {
+    $("result").style.display = "block";
+    const v = $("verdict"), kv = $("kv"), rep = $("rep"), log = $("log");
+    kv.innerHTML = ""; rep.innerHTML = "";
+
+    if (d.error) {
+      v.className = "verdict no"; v.textContent = "Error";
+      log.textContent = d.error; return;
+    }
+    if (!d.matched) {
+      v.className = "verdict no"; v.textContent = "No match";
+      log.textContent = (d.log || []).join("\n"); return;
+    }
+
+    const closed = d.result && d.result.kind === "deal-closed";
+    v.className = "verdict " + (closed ? "ok" : "no");
+    v.textContent = closed ? "✓ Deal closed" : "✗ No deal (" + d.result.kind + ")";
+
+    if (closed) {
+      const rows = [
+        ["Unit price", "$" + d.result.unitPrice],
+        ["Quantity", d.result.qty + " hrs"],
+        ["Total", "$" + d.total],
+        ["Transcript hash", (d.result.transcriptHash || "—").slice(0, 22) + "…"],
+      ];
+      kv.innerHTML = rows.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join("");
+      const r = d.reputation || {};
+      rep.innerHTML = Object.entries(r).map(([name, s]) =>
+        `<div class="chip">${name}: <b>${s.count}</b> deal(s)</div>`).join("");
+    }
+    log.textContent = (d.log || []).join("\n");
+  }
+</script>
+</body>
+</html>

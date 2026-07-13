@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "e2e": "tsx src/run-e2e.ts",
-    "start": "tsx src/start-all.ts"
+    "test": "tsx src/run-e2e.ts",
+    "start": "tsx src/start-all.ts",
+    "ui": "tsx src/ui-server.ts"
   },
   "dependencies": {
     "@finality/intake": "*",
