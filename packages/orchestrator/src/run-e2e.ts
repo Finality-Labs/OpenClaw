@@ -56,7 +56,7 @@ async function main() {
     : offer.matched
     ? offer
     : await (async () => {
-        const m = await (await fetch(`${HTTP}/matches/${intent.intentId}`)).json();
+        const m: any = await (await fetch(`${HTTP}/matches/${intent.intentId}`)).json();
         if (!m.matched) throw new Error("no match");
         return m;
       })();

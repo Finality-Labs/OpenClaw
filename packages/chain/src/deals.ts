@@ -16,11 +16,29 @@ import { z } from 'zod';
 import { evaluate, type SafetyPolicy } from './safety.js';
 import { buildPayment, facilitator } from './mockFacilitator.js';
 import { reputation } from './reputation.js';
+import { loadChainConfig, isLiveReady, explorerBase } from './config.js';
+import type { LiveAdapter } from './liveAdapter.js';
+
+// Live adapter is lazily created once, only when CHAIN_MODE=live is ready.
+let liveAdapterPromise: Promise<LiveAdapter> | null = null;
+async function getLiveAdapter(): Promise<LiveAdapter | null> {
+  const cfg = loadChainConfig();
+  const check = isLiveReady(cfg);
+  if (!check.ready) return null;
+  if (!liveAdapterPromise) {
+    const { createLiveAdapter } = await import('./liveAdapter.js');
+    liveAdapterPromise = createLiveAdapter(cfg);
+  }
+  return liveAdapterPromise;
+}
 
 const partySchema = z.object({
   agentRegistry: z.string().startsWith('eip155:'),
   agentId: z.string(),
   wallet: z.string().regex(/^0x[a-fA-F0-9]+$/),
+  // Optional numeric ERC-8004 on-chain agentId (ERC-721 tokenId from register).
+  // When present in live mode, real giveFeedback/getSummary target it.
+  onchainAgentId: z.string().regex(/^\d+$/).optional(),
 });
 
 /** Contract §5 deal object. */
@@ -51,7 +69,9 @@ export const DEFAULT_POLICY: SafetyPolicy = {
 
 export interface DealResponse {
   ok: boolean;
+  mode: 'mock' | 'live';
   txHash: string;
+  explorerUrl?: string;
   reputation: {
     buyer: { agentId: string } & ReturnType<typeof reputation.getReputation>;
     seller: { agentId: string } & ReturnType<typeof reputation.getReputation>;
@@ -81,7 +101,54 @@ export async function handleDeal(
     });
   }
 
-  // 3. Mock x402 settle (NO ledger entry if this throws).
+  // 3-5: settle + record reputation. Try LIVE (on-chain) when configured and
+  // ready; otherwise fall back to the MOCK facilitator + in-memory reputation.
+  const live = await getLiveAdapter();
+
+  if (live) {
+    // ── LIVE on-chain settlement (real token transfer to the seller wallet) ──
+    const { txHash } = await live.settle(deal.seller.wallet, deal.totalUsdc);
+    const cfg = loadChainConfig();
+    const explorerUrl = `${explorerBase(cfg.network)}/tx/${txHash}`;
+    const proof = {
+      fromAddress: deal.buyer.wallet,
+      toAddress: deal.seller.wallet,
+      chainId: live.chainId,
+      txHash,
+    };
+
+    // On-chain reputation requires numeric ERC-8004 agentIds (register first).
+    // When provided, record real feedback; else skip gracefully (settlement is
+    // still real). We never let a reputation error void a completed payment.
+    const buyerAgent = { agentId: deal.buyer.agentId, count: 0, summaryValue: 0, summaryValueDecimals: 0 };
+    const sellerAgent = { agentId: deal.seller.agentId, count: 0, summaryValue: 0, summaryValueDecimals: 0 };
+    try {
+      if (deal.buyer.onchainAgentId) {
+        await live.giveFeedback({
+          agentId: deal.buyer.onchainAgentId, value: 1, decimals: 0,
+          tag1: 'deal', tag2: 'paid', endpoint: '/deals', feedbackHash: deal.transcriptHash, proofOfPayment: proof,
+        });
+        Object.assign(buyerAgent, await live.getReputation(deal.buyer.onchainAgentId));
+      }
+      if (deal.seller.onchainAgentId) {
+        await live.giveFeedback({
+          agentId: deal.seller.onchainAgentId, value: 1, decimals: 0,
+          tag1: 'deal', tag2: 'fulfilled', endpoint: '/deals', feedbackHash: deal.transcriptHash, proofOfPayment: proof,
+        });
+        Object.assign(sellerAgent, await live.getReputation(deal.seller.onchainAgentId));
+      }
+    } catch (e) {
+      // Reputation is best-effort in live mode; payment already settled on-chain.
+      console.error('[chain] live reputation write failed (settlement stands):', (e as Error).message);
+    }
+
+    return {
+      ok: true, mode: 'live', txHash, explorerUrl,
+      reputation: { buyer: buyerAgent, seller: sellerAgent },
+    };
+  }
+
+  // ── MOCK settlement (default, keyless) ──
   const payment = buildPayment(deal.buyer.wallet, deal.seller.wallet, deal.totalUsdc);
   const verify = await facilitator.verify(payment);
   if (!verify.ok) {
@@ -125,6 +192,7 @@ export async function handleDeal(
   // 5. Response.
   return {
     ok: true,
+    mode: 'mock',
     txHash,
     reputation: {
       buyer: { agentId: buyerRec.agentId, ...reputation.getReputation(buyerRec.agentId) },
