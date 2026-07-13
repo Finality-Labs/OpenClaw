@@ -1,0 +1,9 @@
+{
+  "extends": "./packages/chain/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "allowImportingTsExtensions": true
+  },
+  "include": ["scripts/**/*.ts", "src/serve-dapp.ts"]
+}

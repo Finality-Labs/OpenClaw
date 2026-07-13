@@ -15,7 +15,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { evaluate, type SafetyPolicy } from './safety.js';
 import { buildPayment, facilitator } from './mockFacilitator.js';
-import { reputation } from './reputation.js';
+import { ReputationProvider, type ReputationResult } from './reputationProvider.js';
 import { loadChainConfig, isLiveReady, explorerBase } from './config.js';
 import type { LiveAdapter } from './liveAdapter.js';
 
@@ -73,8 +73,8 @@ export interface DealResponse {
   txHash: string;
   explorerUrl?: string;
   reputation: {
-    buyer: { agentId: string } & ReturnType<typeof reputation.getReputation>;
-    seller: { agentId: string } & ReturnType<typeof reputation.getReputation>;
+    buyer: { agentId: string } & ReputationResult;
+    seller: { agentId: string } & ReputationResult;
   };
 }
 
@@ -104,6 +104,7 @@ export async function handleDeal(
   // 3-5: settle + record reputation. Try LIVE (on-chain) when configured and
   // ready; otherwise fall back to the MOCK facilitator + in-memory reputation.
   const live = await getLiveAdapter();
+  const repProvider = new ReputationProvider(live);
 
   if (live) {
     // ── LIVE on-chain settlement (real token transfer to the seller wallet) ──
@@ -118,24 +119,26 @@ export async function handleDeal(
     };
 
     // On-chain reputation requires numeric ERC-8004 agentIds (register first).
-    // When provided, record real feedback; else skip gracefully (settlement is
-    // still real). We never let a reputation error void a completed payment.
-    const buyerAgent = { agentId: deal.buyer.agentId, count: 0, summaryValue: 0, summaryValueDecimals: 0 };
-    const sellerAgent = { agentId: deal.seller.agentId, count: 0, summaryValue: 0, summaryValueDecimals: 0 };
+    // When provided, record real/equivalent feedback; else skip gracefully
+    // (settlement is still real). We never let a reputation error void a
+    // completed payment. The provider auto-falls-back to off-chain when the
+    // Reputation Registry is a placeholder (e.g. GOAT Testnet3 today).
+    const buyerAgent = { agentId: deal.buyer.agentId, count: 0, summaryValue: 0, summaryValueDecimals: 0, mode: "offchain" as const };
+    const sellerAgent = { agentId: deal.seller.agentId, count: 0, summaryValue: 0, summaryValueDecimals: 0, mode: "offchain" as const };
     try {
       if (deal.buyer.onchainAgentId) {
-        await live.giveFeedback({
+        const r = await repProvider.giveFeedback({
           agentId: deal.buyer.onchainAgentId, value: 1, decimals: 0,
           tag1: 'deal', tag2: 'paid', endpoint: '/deals', feedbackHash: deal.transcriptHash, proofOfPayment: proof,
         });
-        Object.assign(buyerAgent, await live.getReputation(deal.buyer.onchainAgentId));
+        Object.assign(buyerAgent, r);
       }
       if (deal.seller.onchainAgentId) {
-        await live.giveFeedback({
+        const r = await repProvider.giveFeedback({
           agentId: deal.seller.onchainAgentId, value: 1, decimals: 0,
           tag1: 'deal', tag2: 'fulfilled', endpoint: '/deals', feedbackHash: deal.transcriptHash, proofOfPayment: proof,
         });
-        Object.assign(sellerAgent, await live.getReputation(deal.seller.onchainAgentId));
+        Object.assign(sellerAgent, r);
       }
     } catch (e) {
       // Reputation is best-effort in live mode; payment already settled on-chain.
@@ -160,6 +163,8 @@ export async function handleDeal(
   const { txHash } = await facilitator.settle(payment);
 
   // 4. Record reputation for both parties w/ proofOfPayment = mock txHash.
+  // Routed through the provider so the off-chain store is the single source
+  // of truth (same backend the live mode falls back to).
   const proof = {
     fromAddress: deal.buyer.wallet,
     toAddress: deal.seller.wallet,
@@ -168,7 +173,7 @@ export async function handleDeal(
   };
   // Buyer gets "paid" feedback; seller gets "fulfilled" feedback. Values are
   // illustrative (MVP3 reputation scoring is ours, off-chain).
-  const buyerRec = reputation.recordFeedback({
+  const buyerRec = await repProvider.giveFeedback({
     agentId: deal.buyer.agentId,
     value: 1,
     decimals: 0,
@@ -178,7 +183,7 @@ export async function handleDeal(
     feedbackHash: deal.transcriptHash,
     proofOfPayment: proof,
   });
-  const sellerRec = reputation.recordFeedback({
+  const sellerRec = await repProvider.giveFeedback({
     agentId: deal.seller.agentId,
     value: 1,
     decimals: 0,
@@ -195,8 +200,8 @@ export async function handleDeal(
     mode: 'mock',
     txHash,
     reputation: {
-      buyer: { agentId: buyerRec.agentId, ...reputation.getReputation(buyerRec.agentId) },
-      seller: { agentId: sellerRec.agentId, ...reputation.getReputation(sellerRec.agentId) },
+      buyer: { agentId: deal.buyer.agentId, ...buyerRec },
+      seller: { agentId: deal.seller.agentId, ...sellerRec },
     },
   };
 }

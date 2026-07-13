@@ -12,6 +12,10 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces"
+    "test": "npm run test --workspaces",
+    "goat:probe": "tsx --env-file=./.env scripts/probe.ts",
+    "goat:preflight": "tsx --env-file=./.env scripts/preflight.ts",
+    "goat:live": "tsx --env-file=./.env scripts/live-test.ts",
+    "goat:dapp": "tsx src/serve-dapp.ts"
   }
 }

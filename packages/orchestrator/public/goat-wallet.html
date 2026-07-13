@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finality · GOAT Testnet3 Wallet + ERC-8004</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #e8e8ea; background: #11131a; }
+    h1 { font-size: 1.4rem; }
+    button { background: #6d5efc; color: #fff; border: 0; border-radius: 8px; padding: .7rem 1rem; font-size: 1rem; cursor: pointer; margin: .3rem .3rem 0 0; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    pre { background: #0b0d12; padding: 1rem; border-radius: 8px; overflow: auto; font-size: .8rem; }
+    .card { background: #1a1d27; border: 1px solid #2a2e3c; border-radius: 12px; padding: 1rem 1.2rem; margin: 1rem 0; }
+    .ok { color: #4ade80; } .err { color: #f87171; } .muted { color: #9aa0ad; }
+    a { color: #8b7dff; }
+    code { background:#0b0d12; padding:.1rem .3rem; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <h1>Finality — GOAT Testnet3 · MetaMask</h1>
+  <p class="muted">Create/connect a wallet via MetaMask, fund it from the faucet, then register an
+    ERC-8004 agent and write on-chain reputation — all against GOAT Testnet3.</p>
+
+  <div class="card">
+    <div><b>Network:</b> GOAT Testnet3 (chainId <code>48816</code>)</div>
+    <div><b>RPC:</b> <code>https://rpc.testnet3.goat.network</code></div>
+    <div><b>Explorer:</b> <a href="https://explorer.testnet3.goat.network" target="_blank">explorer.testnet3.goat.network</a></div>
+    <div><b>Identity Registry:</b> <code>0x556089008Fc0a60cD09390Eca93477ca254A5522</code></div>
+    <div><b>Reputation Registry:</b> <code>0xd9140951d8aE6E5F625a02F5908535e16e3af964</code></div>
+  </div>
+
+  <div class="card">
+    <button id="connect">1. Connect MetaMask</button>
+    <button id="addNetwork" disabled>2. Add GOAT Testnet3</button>
+    <button id="faucet" disabled>3. Open Faucet</button>
+    <button id="register" disabled>4. Register ERC-8004 Agent</button>
+    <button id="reputation" disabled>5. Write Reputation</button>
+    <p id="status" class="muted">Not connected.</p>
+    <div id="wallet" class="muted"></div>
+  </div>
+
+  <div class="card">
+    <h3>Activity</h3>
+    <pre id="log">—</pre>
+  </div>
+
+  <script>
+    const IDENTITY_REGISTRY = "0x556089008Fc0a60cD09390Eca93477ca254A5522";
+    const REPUTATION_REGISTRY = "0xd9140951d8aE6E5F625a02F5908535e16e3af964";
+    const CHAIN_ID = "0xBE90"; // 48816
+    const RPC = "https://rpc.testnet3.goat.network";
+    const EXPLORER = "https://explorer.testnet3.goat.network";
+
+    const IDENTITY_ABI = [ "function register(string agentURI) returns (uint256 agentId)" ];
+    const REP_ABI = [ "function giveFeedback(uint256 agentId,uint256 value,uint8 valueDecimals,string tag1,string tag2,string endpoint,string feedbackURI,bytes32 feedbackHash)" ];
+
+    let provider, signer, account;
+    const $ = (id) => document.getElementById(id);
+    function log(msg, cls="") { const el=$("log"); el.innerHTML += `<div class="${cls}">${msg}</div>`; }
+    function setStatus(m, cls="") { $("status").innerHTML = `<span class="${cls}">${m}</span>`; }
+    const explorer = (h) => `${EXPLORER}/tx/${h}`;
+
+    if (!window.ethereum) {
+      setStatus("⚠️ No injected wallet (install MetaMask).", "err");
+    }
+
+    $("connect").onclick = async () => {
+      try {
+        provider = new ethers.BrowserProvider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        signer = await provider.getSigner();
+        account = await signer.getAddress();
+        $("wallet").innerHTML = `Connected: <code>${account}</code>`;
+        setStatus("✅ Connected.", "ok");
+        ["addNetwork","faucet","register","reputation"].forEach(id => $(id).disabled = false);
+        log(`connected ${account}`, "ok");
+      } catch (e) { setStatus("Connect failed: " + e.message, "err"); }
+    };
+
+    $("addNetwork").onclick = async () => {
+      try {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [{
+            chainId: CHAIN_ID,
+            chainName: "GOAT Testnet3",
+            nativeCurrency: { name: "GOAT", symbol: "GOAT", decimals: 18 },
+            rpcUrls: [RPC],
+            blockExplorerUrls: [EXPLORER],
+          }],
+        });
+        setStatus("✅ Network added/switched.", "ok");
+      } catch (e) { setStatus("Add network failed: " + e.message, "err"); }
+    };
+
+    $("faucet").onclick = () => window.open("https://bridge.testnet3.goat.network/faucet", "_blank");
+
+    $("register").onclick = async () => {
+      try {
+        setStatus("Registering agent on-chain…", "");
+        const uri = `ipfs://finality-metamask/${Date.now()}`;
+        const c = new ethers.Contract(IDENTITY_REGISTRY, IDENTITY_ABI, signer);
+        const tx = await c.register(uri);
+        log(`register tx sent: ${tx.hash}`);
+        const rcpt = await tx.wait();
+        // Parse AgentRegistered (agentId is arg[0] of first log from registry)
+        let agentId = null;
+        for (const lg of rcpt.logs) {
+          if (lg.address.toLowerCase() === IDENTITY_REGISTRY.toLowerCase()) {
+            try { agentId = c.interface.parseLog(lg)?.args?.agentId?.toString(); } catch {}
+          }
+        }
+        window.__agentId = agentId;
+        log(`✅ agentId = ${agentId}  <a href="${explorer(tx.hash)}">explorer</a>`, "ok");
+        setStatus("✅ Agent registered. Now write reputation.", "ok");
+      } catch (e) { setStatus("Register failed: " + e.message, "err"); }
+    };
+
+    $("reputation").onclick = async () => {
+      if (!window.__agentId) { setStatus("Register an agent first.", "err"); return; }
+      try {
+        setStatus("Writing ERC-8004 reputation…", "");
+        const c = new ethers.Contract(REPUTATION_REGISTRY, REP_ABI, signer);
+        const tx = await c.giveFeedback(
+          window.__agentId, 1, 0, "deal", "paid", "/deals", "", ethers.zeroPadValue(account, 32)
+        );
+        log(`feedback tx sent: ${tx.hash}`);
+        await tx.wait();
+        log(`✅ reputation written  <a href="${explorer(tx.hash)}">explorer</a>`, "ok");
+        setStatus("✅ Reputation on-chain.", "ok");
+      } catch (e) { setStatus("Reputation failed: " + e.message, "err"); }
+    };
+  </script>
+  <!-- ethers via CDN so the dapp is self-contained -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+</body>
+</html>
