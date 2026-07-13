@@ -1,0 +1,17 @@
+{
+  "name": "finality-agent-network",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/intake",
+    "packages/negotiate",
+    "packages/chain",
+    "packages/skill",
+    "packages/reference-agent",
+    "packages/orchestrator"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces"
+  }
+}

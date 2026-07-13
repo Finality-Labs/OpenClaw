@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FinalityIntent",
+  "type": "object",
+  "required": ["resource", "qty", "unit", "maxUnitPrice", "agentRegistry", "agentId", "wallet"],
+  "properties": {
+    "resource": { "type": "string", "examples": ["gpu"] },
+    "qty": { "type": "number", "minimum": 0 },
+    "unit": { "type": "string", "examples": ["hour"] },
+    "maxUnitPrice": { "type": "number", "minimum": 0 },
+    "requirements": { "type": "object", "additionalProperties": true },
+    "agentRegistry": { "type": "string", "pattern": "^eip155:" },
+    "agentId": { "type": "string" },
+    "wallet": { "type": "string", "pattern": "^0x[a-fA-F0-9]+$" }
+  }
+}

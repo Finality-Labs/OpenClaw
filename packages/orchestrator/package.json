@@ -1,0 +1,21 @@
+{
+  "name": "@finality/orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "tsx src/run-e2e.ts",
+    "start": "tsx src/start-all.ts"
+  },
+  "dependencies": {
+    "@finality/intake": "*",
+    "@finality/negotiate": "*",
+    "@finality/chain": "*",
+    "@finality/reference-agent": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "tsx": "^4.16.2",
+    "@types/node": "^20.14.0"
+  }
+}

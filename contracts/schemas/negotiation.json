@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FinalityNegotiationMessage",
+  "type": "object",
+  "required": ["type", "from", "round", "ts"],
+  "properties": {
+    "type": { "enum": ["counteroffer", "accept", "reject", "close", "system"] },
+    "from": { "enum": ["buyer", "seller"] },
+    "round": { "type": "integer", "minimum": 1 },
+    "payload": { "type": "object", "additionalProperties": true },
+    "ts": { "type": "integer" }
+  }
+}
