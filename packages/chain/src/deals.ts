@@ -224,4 +224,47 @@ export function registerDealsRoutes(
       });
     }
   });
+
+  // POST /register — register an agent on the ERC-8004 Identity Registry (live
+  // mode only). Returns { txHash, agentId } where agentId is the numeric
+  // ERC-721 tokenId to pass back as onchainAgentId on future deals. In mock
+  // mode this returns 422 (nothing to register off-chain).
+  const registerSchema = z.object({ agentURI: z.string().min(1) });
+  app.post('/register', async (request, reply) => {
+    const parsed = registerSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ ok: false, error: 'agentURI required' });
+    }
+    const live = await getLiveAdapter();
+    if (!live) {
+      return reply.code(422).send({
+        ok: false,
+        error: 'registration requires CHAIN_MODE=live with a funded GOAT_PRIVATE_KEY',
+      });
+    }
+    try {
+      const { txHash, agentId } = await live.register(parsed.data.agentURI);
+      const cfg = loadChainConfig();
+      return reply.code(200).send({
+        ok: true,
+        agentId,
+        txHash,
+        explorerUrl: `${explorerBase(cfg.network)}/tx/${txHash}`,
+      });
+    } catch (err) {
+      return reply.code(500).send({ ok: false, error: (err as Error).message });
+    }
+  });
+
+  // GET /mode — report whether the chain service is settling live or mock.
+  app.get('/mode', async () => {
+    const cfg = loadChainConfig();
+    const check = isLiveReady(cfg);
+    return {
+      mode: check.ready ? 'live' : 'mock',
+      network: cfg.network,
+      liveReady: check.ready,
+      reason: check.ready ? undefined : check.reason,
+    };
+  });
 }

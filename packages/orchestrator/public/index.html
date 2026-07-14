@@ -410,8 +410,16 @@
   </style>
 </head>
 <body>
-  <div class="cursor" id="cursor"></div>
-  <div class="cursor-follower" id="cursorFollower"></div>
+<header>
+  <h1>Finality Agent Network</h1>
+  <div class="tag"><span class="dot"></span>Live control panel — initialize a deal between two AI agents</div>
+  <div class="services">
+    <span>intake <code>:3001</code></span>
+    <span>negotiate <code>:3002</code></span>
+    <span>chain <code>:3003</code></span>
+    <span id="chainMode" class="chip" title="Settlement mode">mode: …</span>
+  </div>
+</header>
 
   <div class="page">
     <div class="shell">
@@ -552,13 +560,29 @@
     const hashValue = $("hashValue");
     const logBox = $("log");
 
-    const state = {
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2,
-      fx: window.innerWidth / 2,
-      fy: window.innerHeight / 2,
-      down: false,
-      hover: false,
+<script>
+  const $ = (id) => document.getElementById(id);
+  const btn = $("run");
+
+  // Show whether the chain service is settling live or mock.
+  (async () => {
+    try {
+      const h = await fetch("/api/health").then((r) => r.json());
+      const m = h.chain?.mode || "unknown";
+      const badge = $("chainMode");
+      badge.textContent = `settlement: ${m}` + (h.chain?.network ? ` (${h.chain.network})` : "");
+      badge.style.borderColor = m === "live" ? "#3fb950" : "#262d3d";
+    } catch {}
+  })();
+
+  btn.onclick = async () => {
+    btn.disabled = true; btn.textContent = "Running negotiation…";
+    const body = {
+      resource: $("resource").value.trim(),
+      gpu: $("gpu").value.trim(),
+      qty: +$("qty").value,
+      buyerMax: +$("buyerMax").value,
+      sellerFloor: +$("sellerFloor").value,
     };
 
     function setStatus(kind, label) {
