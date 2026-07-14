@@ -5,6 +5,7 @@
   "workspaces": [
     "packages/intake",
     "packages/negotiate",
+    "packages/negotiate-brain",
     "packages/chain",
     "packages/skill",
     "packages/reference-agent",
@@ -17,5 +18,9 @@
     "goat:preflight": "tsx --env-file=./.env scripts/preflight.ts",
     "goat:live": "tsx --env-file=./.env scripts/live-test.ts",
     "goat:dashboard": "tsx --env-file=./.env src/serve-dashboard.ts"
+  },
+  "dependencies": {
+    "langsmith": "^0.8.1",
+    "openai": "^6.46.0"
   }
 }

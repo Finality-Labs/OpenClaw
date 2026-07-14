@@ -1,151 +1,738 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Finality Agent Network — Control Panel</title>
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin:0; font:15px/1.55 system-ui,-apple-system,sans-serif; background:#0b0e14; color:#d7dce5; }
-  header { padding:28px 32px 20px; border-bottom:1px solid #1c2230; }
-  h1 { margin:0; font-size:22px; letter-spacing:-0.3px; }
-  .tag { color:#6b7688; font-size:13px; margin-top:4px; }
-  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#3fb950; margin-right:6px; vertical-align:middle; }
-  main { max-width:900px; margin:0 auto; padding:28px 32px; display:grid; gap:24px; }
-  .card { background:#11151f; border:1px solid #1c2230; border-radius:12px; padding:22px 24px; }
-  .card h2 { margin:0 0 16px; font-size:15px; color:#9aa4b5; text-transform:uppercase; letter-spacing:0.6px; }
-  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  label { display:block; font-size:13px; color:#8b95a7; margin-bottom:6px; }
-  input, select { width:100%; background:#0b0e14; border:1px solid #262d3d; color:#e6eaf1; border-radius:8px;
-    padding:9px 11px; font-size:14px; }
-  input:focus, select:focus { outline:none; border-color:#3b82f6; }
-  .row2 { grid-column:1 / -1; }
-  button { margin-top:20px; width:100%; background:#2563eb; color:#fff; border:none; border-radius:9px;
-    padding:12px; font-size:15px; font-weight:600; cursor:pointer; }
-  button:hover { background:#1d4ed8; }
-  button:disabled { background:#1e2536; color:#5a6478; cursor:not-allowed; }
-  .result { display:none; }
-  .verdict { font-size:20px; font-weight:700; margin-bottom:4px; }
-  .verdict.ok { color:#3fb950; } .verdict.no { color:#f0883e; }
-  .kv { display:grid; grid-template-columns:auto 1fr; gap:6px 18px; margin:12px 0; font-size:14px; }
-  .kv dt { color:#8b95a7; } .kv dd { margin:0; font-variant-numeric:tabular-nums; }
-  .log { background:#0b0e14; border:1px solid #1c2230; border-radius:8px; padding:12px 14px; margin-top:14px;
-    font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; color:#93a1b5; white-space:pre-wrap; max-height:280px; overflow:auto; }
-  .rep { display:flex; gap:14px; flex-wrap:wrap; margin-top:8px; }
-  .chip { background:#0b0e14; border:1px solid #262d3d; border-radius:8px; padding:8px 12px; font-size:13px; }
-  .chip b { color:#e6eaf1; }
-  .services { display:flex; gap:18px; flex-wrap:wrap; font-size:13px; color:#7d8798; margin-top:6px; }
-  code { color:#7aa2f7; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f4f3ef" />
+  <title>Finality Control Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f4f3ef;
+      --panel: rgba(255,255,255,.72);
+      --panel-strong: #fff;
+      --text: #151515;
+      --muted: #5d5d5d;
+      --line: rgba(21,21,21,.14);
+      --line-strong: rgba(21,21,21,.3);
+      --shadow: 0 18px 50px rgba(0,0,0,.06);
+      --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; min-height: 100%; }
+    body {
+      background:
+        radial-gradient(circle at 15% 20%, rgba(0,0,0,.06), transparent 28%),
+        radial-gradient(circle at 82% 24%, rgba(0,0,0,.045), transparent 22%),
+        linear-gradient(180deg, #f8f7f2 0%, #f4f3ef 54%, #efede6 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      cursor: none;
+    }
+
+    body.cursor-down .cursor { transform: translate(-50%, -50%) scale(.92); }
+    body.cursor-hover .cursor { width: 12px; height: 12px; }
+    body.cursor-hover .cursor-follower { width: 56px; height: 56px; border-color: rgba(0,0,0,.24); background: rgba(0,0,0,.03); }
+
+    .cursor,
+    .cursor-follower {
+      position: fixed;
+      top: 0;
+      left: 0;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 9999;
+      will-change: transform, width, height, opacity;
+    }
+    .cursor {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #111;
+      transition: width .16s ease, height .16s ease, background .16s ease, opacity .12s ease, transform .1s ease;
+    }
+    .cursor-follower {
+      width: 36px;
+      height: 36px;
+      border: 1px solid rgba(0,0,0,.18);
+      border-radius: 50%;
+      background: rgba(255,255,255,.18);
+      transition: width .2s ease, height .2s ease, border-color .2s ease, background .2s ease, opacity .12s ease;
+    }
+
+    .page {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: minmax(280px, .92fr) minmax(0, 1.08fr);
+      gap: 22px;
+      align-items: stretch;
+      min-height: calc(100vh - 48px);
+    }
+
+    .left,
+    .right {
+      position: relative;
+      z-index: 1;
+    }
+
+    .left {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px 10px 16px 0;
+    }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      color: rgba(21,21,21,.6);
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #111;
+      box-shadow: 0 0 0 6px rgba(0,0,0,.05);
+    }
+
+    h1 {
+      font-family: var(--serif);
+      font-size: clamp(4rem, 9vw, 7rem);
+      line-height: .92;
+      font-weight: 400;
+      letter-spacing: -0.03em;
+      max-width: 8ch;
+      margin-bottom: 18px;
+    }
+
+    .intro {
+      max-width: 48ch;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.5;
+      margin-bottom: 28px;
+    }
+
+    .hero-mark {
+      position: relative;
+      width: min(100%, 620px);
+      aspect-ratio: 1 / .96;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.82), rgba(255,255,255,.42)),
+        linear-gradient(180deg, rgba(0,0,0,.02), transparent);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero-mark::before,
+    .hero-mark::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .hero-mark::before {
+      background:
+        linear-gradient(135deg, transparent 0 34%, rgba(0,0,0,.92) 34% 40%, transparent 40% 100%),
+        linear-gradient(45deg, transparent 0 52%, rgba(0,0,0,.84) 52% 58%, transparent 58% 100%);
+      opacity: .92;
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 17% 100%, 17% 60%, 0 47%);
+    }
+
+    .hero-mark::after {
+      background:
+        repeating-linear-gradient(90deg, rgba(0,0,0,.035) 0 1px, transparent 1px 18px),
+        repeating-linear-gradient(0deg, rgba(0,0,0,.03) 0 1px, transparent 1px 18px);
+      mix-blend-mode: multiply;
+    }
+
+    .meta-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.5);
+      font-size: 12px;
+      color: rgba(21,21,21,.8);
+      white-space: nowrap;
+    }
+
+    .chip strong { font-weight: 600; }
+
+    .right {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .panel h2 {
+      font-family: var(--serif);
+      font-size: 2rem;
+      font-weight: 400;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: .92rem;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 7px; }
+    .span-2 { grid-column: 1 / -1; }
+
+    label {
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(21,21,21,.64);
+    }
+
+    input, select {
+      appearance: none;
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      background: rgba(255,255,255,.84);
+      color: var(--text);
+      border-radius: 0;
+      padding: 12px 13px;
+      font: inherit;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .15s ease, background .15s ease, transform .15s ease;
+    }
+
+    input:focus, select:focus {
+      border-color: #111;
+      background: #fff;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid #111;
+      background: #111;
+      color: #fff;
+      padding: 12px 16px;
+      font: inherit;
+      font-size: 14px;
+      cursor: none;
+      transition: transform .15s ease, background .15s ease, color .15s ease;
+    }
+
+    button:hover { background: #2b2b2b; }
+    button:active { transform: translateY(1px); }
+    button.secondary {
+      background: transparent;
+      color: #111;
+    }
+
+    button.secondary:hover { background: rgba(17,17,17,.06); }
+    button:disabled { opacity: .6; cursor: wait; }
+
+    .status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--line-strong);
+      background: rgba(255,255,255,.7);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #111;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .kv {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.62);
+      padding: 14px;
+      min-height: 96px;
+    }
+    .kv .k {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      margin-bottom: 10px;
+    }
+    .kv .v {
+      font-size: 18px;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+    .kv .v small { color: var(--muted); font-size: 13px; }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .log {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.65);
+      padding: 14px;
+      font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre-wrap;
+      min-height: 220px;
+      max-height: 320px;
+      overflow: auto;
+      color: #222;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-weight: 500;
+    }
+    a { color: inherit; }
+    .muted { color: var(--muted); }
+    .tiny { font-size: 12px; }
+    .badge {
+      padding: 3px 8px;
+      border: 1px solid var(--line-strong);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+    }
+
+    .footer {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 1100px) {
+      .shell { grid-template-columns: 1fr; }
+      .left { padding-right: 0; }
+      .hero-mark { width: 100%; }
+    }
+
+    @media (max-width: 720px) {
+      .page { padding: 14px; }
+      .shell { gap: 14px; min-height: auto; }
+      h1 { font-size: clamp(3rem, 15vw, 4.7rem); }
+      .panel { padding: 14px; }
+      .form-grid, .grid-2 { grid-template-columns: 1fr; }
+      .span-2, .wide { grid-column: auto; }
+      .hero-mark { aspect-ratio: 1 / .75; }
+    }
+  </style>
 </head>
 <body>
-<header>
-  <h1>Finality Agent Network</h1>
-  <div class="tag"><span class="dot"></span>Live control panel — initialize a deal between two AI agents</div>
-  <div class="services">
-    <span>intake <code>:3001</code></span>
-    <span>negotiate <code>:3002</code></span>
-    <span>chain <code>:3003</code></span>
-  </div>
-</header>
+  <div class="cursor" id="cursor"></div>
+  <div class="cursor-follower" id="cursorFollower"></div>
 
-<main>
-  <div class="card">
-    <h2>Initialize a deal</h2>
-    <div class="grid">
-      <div>
-        <label>Resource</label>
-        <input id="resource" value="gpu">
-      </div>
-      <div>
-        <label>GPU requirement (optional)</label>
-        <input id="gpu" value="H100" placeholder="H100">
-      </div>
-      <div>
-        <label>Quantity (hours)</label>
-        <input id="qty" type="number" value="2" min="1">
-      </div>
-      <div></div>
-      <div>
-        <label>Buyer max price / unit ($)</label>
-        <input id="buyerMax" type="number" value="20" min="0">
-      </div>
-      <div>
-        <label>Seller floor price / unit ($)</label>
-        <input id="sellerFloor" type="number" value="15" min="0">
-      </div>
+  <div class="page">
+    <div class="shell">
+      <section class="left">
+        <div>
+          <div class="eyebrow">Finality Control Panel</div>
+          <h1>Live negotiation to on-chain settlement.</h1>
+          <p class="intro">
+            Enter buyer and seller terms, run the live agent negotiation, then inspect the transcript,
+            settlement tx, and the final registry state from the same dashboard.
+          </p>
+          <div class="meta-row" id="metaRow">
+            <span class="chip">intake <strong>:3001</strong></span>
+            <span class="chip">negotiate <strong>:3002</strong></span>
+            <span class="chip">chain <strong>:3003</strong></span>
+          </div>
+        </div>
+
+        <div>
+          <div class="hero-mark"></div>
+          <div class="footer">
+            The cursor is custom, the theme is monochrome, and the negotiation flow is real.
+          </div>
+        </div>
+      </section>
+
+      <section class="right">
+        <form class="panel" id="dealForm">
+          <h2>Run a deal</h2>
+          <p class="sub">
+            Use a small amount for live GOAT settlement, or toggle deterministic mode if you only want the room behavior.
+          </p>
+
+          <div class="form-grid">
+            <div class="field">
+              <label for="resource">Resource</label>
+              <input id="resource" value="gpu" />
+            </div>
+            <div class="field">
+              <label for="gpu">GPU requirement</label>
+              <input id="gpu" value="H100" placeholder="H100" />
+            </div>
+
+            <div class="field">
+              <label for="qty">Quantity</label>
+              <input id="qty" type="number" value="1" min="1" step="1" />
+            </div>
+            <div class="field">
+              <label for="timeoutMs">Agent timeout ms</label>
+              <input id="timeoutMs" type="number" value="120000" min="1000" step="1000" />
+            </div>
+
+            <div class="field">
+              <label for="buyerAgentId">Buyer agent</label>
+              <input id="buyerAgentId" value="ResearchBot" />
+            </div>
+            <div class="field">
+              <label for="sellerAgentId">Seller agent</label>
+              <input id="sellerAgentId" value="GPUVendorAlpha" />
+            </div>
+
+            <div class="field">
+              <label for="buyerWallet">Buyer wallet</label>
+              <input id="buyerWallet" placeholder="0x..." />
+            </div>
+            <div class="field">
+              <label for="sellerWallet">Seller wallet</label>
+              <input id="sellerWallet" placeholder="0x..." />
+            </div>
+
+            <div class="field">
+              <label for="buyerMax">Buyer max / unit</label>
+              <input id="buyerMax" type="number" value="0.0002" min="0" step="0.00001" />
+            </div>
+            <div class="field">
+              <label for="sellerFloor">Seller floor / unit</label>
+              <input id="sellerFloor" type="number" value="0.0001" min="0" step="0.00001" />
+            </div>
+
+            <div class="field span-2">
+              <label for="traceMode">Mode</label>
+              <select id="traceMode">
+                <option value="live">Live LLM + live chain</option>
+                <option value="deterministic">Deterministic negotiation + live chain</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="runBtn" type="submit">Run negotiation</button>
+            <button id="resetBtn" type="button" class="secondary">Reset log</button>
+          </div>
+        </form>
+
+        <section class="panel">
+          <div class="status">
+            <h2 style="margin:0;">Outcome</h2>
+            <span class="status-badge" id="statusBadge"><span class="status-dot"></span><span id="statusText">Idle</span></span>
+          </div>
+          <div class="grid-2">
+            <div class="kv">
+              <div class="k">Deal</div>
+              <div class="v" id="dealValue">Waiting to run</div>
+            </div>
+            <div class="kv">
+              <div class="k">Settlement</div>
+              <div class="v" id="settlementValue">No settlement yet</div>
+            </div>
+            <div class="kv wide">
+              <div class="k">Transcript hash</div>
+              <div class="v" id="hashValue"><small>Will appear after deal close.</small></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel stack">
+          <div class="status">
+            <h2 style="margin:0;">Negotiation Log</h2>
+            <span class="badge">live transcript</span>
+          </div>
+          <div class="log" id="log">Ready.</div>
+        </section>
+      </section>
     </div>
-    <button id="run">Run deal →</button>
   </div>
 
-  <div class="card result" id="result">
-    <h2>Outcome</h2>
-    <div class="verdict" id="verdict"></div>
-    <dl class="kv" id="kv"></dl>
-    <div class="rep" id="rep"></div>
-    <div class="log" id="log"></div>
-  </div>
-</main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const cursor = $("cursor");
+    const follower = $("cursorFollower");
+    const dealForm = $("dealForm");
+    const runBtn = $("runBtn");
+    const resetBtn = $("resetBtn");
+    const statusText = $("statusText");
+    const statusBadge = $("statusBadge");
+    const dealValue = $("dealValue");
+    const settlementValue = $("settlementValue");
+    const hashValue = $("hashValue");
+    const logBox = $("log");
 
-<script>
-  const $ = (id) => document.getElementById(id);
-  const btn = $("run");
-
-  btn.onclick = async () => {
-    btn.disabled = true; btn.textContent = "Running negotiation…";
-    const body = {
-      resource: $("resource").value.trim(),
-      gpu: $("gpu").value.trim(),
-      qty: +$("qty").value,
-      buyerMax: +$("buyerMax").value,
-      sellerFloor: +$("sellerFloor").value,
+    const state = {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+      fx: window.innerWidth / 2,
+      fy: window.innerHeight / 2,
+      down: false,
+      hover: false,
     };
-    try {
-      const res = await fetch("/api/run-deal", {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+
+    function setStatus(kind, label) {
+      statusText.textContent = label;
+      statusBadge.style.borderColor = kind === "good" ? "#111" : "rgba(21,21,21,.3)";
+      statusBadge.style.background = kind === "good" ? "rgba(17,17,17,.08)" : "rgba(255,255,255,.7)";
+    }
+
+    function shorten(value, size = 8) {
+      if (!value) return "—";
+      return value.length > size * 2 ? `${value.slice(0, size)}…${value.slice(-size)}` : value;
+    }
+
+    function bindCursor() {
+      const hoverables = "button,input,select,a,label,.panel,.chip,.status-badge,.badge";
+      document.addEventListener("pointermove", (e) => {
+        state.x = e.clientX;
+        state.y = e.clientY;
+        cursor.style.left = `${state.x}px`;
+        cursor.style.top = `${state.y}px`;
       });
-      const data = await res.json();
-      render(data);
-    } catch (e) {
-      render({ error: e.message });
-    } finally {
-      btn.disabled = false; btn.textContent = "Run deal →";
-    }
-  };
+      document.addEventListener("pointerdown", () => {
+        state.down = true;
+        document.body.classList.add("cursor-down");
+      });
+      document.addEventListener("pointerup", () => {
+        state.down = false;
+        document.body.classList.remove("cursor-down");
+      });
+      document.addEventListener("pointerover", (e) => {
+        const target = e.target instanceof Element ? e.target : null;
+        if (target && target.closest(hoverables)) {
+          document.body.classList.add("cursor-hover");
+        }
+      });
+      document.addEventListener("pointerout", (e) => {
+        const target = e.target instanceof Element ? e.target : null;
+        if (target && target.closest(hoverables)) {
+          document.body.classList.remove("cursor-hover");
+        }
+      });
 
-  function render(d) {
-    $("result").style.display = "block";
-    const v = $("verdict"), kv = $("kv"), rep = $("rep"), log = $("log");
-    kv.innerHTML = ""; rep.innerHTML = "";
-
-    if (d.error) {
-      v.className = "verdict no"; v.textContent = "Error";
-      log.textContent = d.error; return;
-    }
-    if (!d.matched) {
-      v.className = "verdict no"; v.textContent = "No match";
-      log.textContent = (d.log || []).join("\n"); return;
+      (function tick() {
+        state.fx += (state.x - state.fx) * 0.18;
+        state.fy += (state.y - state.fy) * 0.18;
+        follower.style.left = `${state.fx}px`;
+        follower.style.top = `${state.fy}px`;
+        requestAnimationFrame(tick);
+      })();
     }
 
-    const closed = d.result && d.result.kind === "deal-closed";
-    v.className = "verdict " + (closed ? "ok" : "no");
-    v.textContent = closed ? "✓ Deal closed" : "✗ No deal (" + d.result.kind + ")";
-
-    if (closed) {
-      const rows = [
-        ["Unit price", "$" + d.result.unitPrice],
-        ["Quantity", d.result.qty + " hrs"],
-        ["Total", "$" + d.total],
-        ["Transcript hash", (d.result.transcriptHash || "—").slice(0, 22) + "…"],
-      ];
-      kv.innerHTML = rows.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join("");
-      const r = d.reputation || {};
-      rep.innerHTML = Object.entries(r).map(([name, s]) =>
-        `<div class="chip">${name}: <b>${s.count}</b> deal(s)</div>`).join("");
+    function renderLog(lines) {
+      logBox.textContent = (lines && lines.length) ? lines.join("\n") : "Ready.";
     }
-    log.textContent = (d.log || []).join("\n");
-  }
-</script>
+
+    function renderOutcome(data) {
+      const closed = data?.result?.kind === "deal-closed";
+      const title = closed ? "Deal closed" : data?.matched ? `Ended: ${data?.result?.kind || "no deal"}` : "No match";
+      setStatus(closed ? "good" : "idle", title);
+
+      if (!data?.matched) {
+        dealValue.innerHTML = `<small>No matching buyer/seller terms.</small>`;
+        settlementValue.innerHTML = `<small>Nothing settled.</small>`;
+        hashValue.innerHTML = `<small>Adjust the input terms and rerun.</small>`;
+      } else {
+        const unit = data?.result?.unitPrice ?? "—";
+        const qty = data?.result?.qty ?? "—";
+        const total = data?.total != null ? Number(data.total).toFixed(6) : "—";
+        dealValue.innerHTML = `${unit} <small>/ unit</small><br><small>${qty} qty, total ${total}</small>`;
+        const settlement = data?.settlement?.response;
+        if (settlement?.ok) {
+          const body = settlement.body || {};
+          const txHash = body.txHash || "—";
+          const explorerUrl = body.explorerUrl || null;
+          settlementValue.innerHTML = explorerUrl
+            ? `<a href="${explorerUrl}" target="_blank" rel="noreferrer">${shorten(txHash, 10)}</a><br><small>Live ${body.mode || "settlement"}</small>`
+            : `${shorten(txHash, 10)}<br><small>${body.mode || "settlement"}</small>`;
+          hashValue.innerHTML = `<code>${data?.result?.transcriptHash || "—"}</code>`;
+        } else if (settlement) {
+          settlementValue.innerHTML = `<small>Chain returned ${settlement.response.status || 0}</small>`;
+          hashValue.innerHTML = `<code>${data?.result?.transcriptHash || "—"}</code>`;
+        } else {
+          settlementValue.innerHTML = `<small>Waiting for settlement callback.</small>`;
+          hashValue.innerHTML = `<code>${data?.result?.transcriptHash || "—"}</code>`;
+        }
+      }
+
+      if (!closed) {
+        const fallback = data?.fallback;
+        const extra = fallback
+          ? `<div class="kv wide" style="margin-top:12px;">
+              <div class="k">Fallback</div>
+              <div class="v">${fallback.message || "No deal closed."}<br><small>${fallback.suggestedAction || "Rerun with a wider price spread."}</small></div>
+            </div>`
+          : `<div class="kv wide" style="margin-top:12px;">
+              <div class="k">Fallback</div>
+              <div class="v"><small>No deal closed. Widen the spread or use deterministic mode.</small></div>
+            </div>`;
+        const outcomePanel = document.querySelector(".panel .grid-2");
+        if (outcomePanel) {
+          const existing = document.getElementById("fallbackBox");
+          if (existing) existing.remove();
+          const wrap = document.createElement("div");
+          wrap.id = "fallbackBox";
+          wrap.innerHTML = extra;
+          outcomePanel.insertAdjacentElement("afterend", wrap);
+        }
+      } else {
+        const existing = document.getElementById("fallbackBox");
+        if (existing) existing.remove();
+      }
+      renderLog(data?.log);
+    }
+
+    async function refreshHealth() {
+      try {
+        const res = await fetch("/api/health");
+        const data = await res.json();
+        if (data?.ok) {
+          setStatus("idle", "Ready");
+        }
+      } catch {
+        setStatus("idle", "Offline");
+      }
+    }
+
+    dealForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      runBtn.disabled = true;
+      runBtn.textContent = "Running...";
+      setStatus("idle", "Negotiating");
+      try {
+        const payload = {
+          resource: $("resource").value.trim() || "gpu",
+          gpu: $("gpu").value.trim(),
+          qty: Number($("qty").value) || 1,
+          buyerMax: Number($("buyerMax").value),
+          sellerFloor: Number($("sellerFloor").value),
+          buyerAgentId: $("buyerAgentId").value.trim() || undefined,
+          sellerAgentId: $("sellerAgentId").value.trim() || undefined,
+          buyerWallet: $("buyerWallet").value.trim() || undefined,
+          sellerWallet: $("sellerWallet").value.trim() || undefined,
+          buyerTimeoutMs: Number($("timeoutMs").value) || 120000,
+          sellerTimeoutMs: Number($("timeoutMs").value) || 120000,
+          forceDeterministic: $("traceMode").value === "deterministic",
+        };
+        const res = await fetch("/api/run-deal", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        renderOutcome(data);
+      } catch (err) {
+        setStatus("idle", "Error");
+        renderLog([String(err.message || err)]);
+      } finally {
+        runBtn.disabled = false;
+        runBtn.textContent = "Run negotiation";
+      }
+    });
+
+    resetBtn.addEventListener("click", () => {
+      renderLog([]);
+      dealValue.innerHTML = "Waiting to run";
+      settlementValue.innerHTML = "No settlement yet";
+      hashValue.innerHTML = "<small>Will appear after deal close.</small>";
+      const existing = document.getElementById("fallbackBox");
+      if (existing) existing.remove();
+      setStatus("idle", "Idle");
+    });
+
+    bindCursor();
+    refreshHealth();
+  </script>
 </body>
 </html>

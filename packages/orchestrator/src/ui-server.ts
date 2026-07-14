@@ -17,17 +17,34 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { startSystem, type RunningSystem } from "./start-all.js";
-import { negotiate, type NegotiationPolicy, type PartyIdentity } from "../../reference-agent/src/negotiate.js";
+import { runAgent, type AgentDeps } from "../../negotiate-brain/src/agent.js";
 import { reputation } from "../../chain/src/reputation.js";
+import { getLastSettlement } from "../../negotiate/src/settle.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UI_PORT = Number(process.env.UI_PORT ?? 3000);
-const HTTP = "http://localhost:3001";
 const REG = "eip155:84532:0x8004A818BFB912233c491871b3d84c89A494BD9e";
+const buyerWalletDefault = process.env.GOAT_BUYER_WALLET ?? "0x1111111111111111111111111111111111111111";
+const sellerWalletDefault = process.env.GOAT_SELLER_WALLET ?? "0x2222222222222222222222222222222222222222";
 
 // A demo-safe alphanumeric wallet (intake's regex rejects underscores).
 function demoWallet(prefix: string): string {
   return `0x${prefix}${Math.random().toString(16).slice(2, 10)}${"0".repeat(24)}`.slice(0, 42);
+}
+
+interface DealRequest {
+  resource: string;
+  qty: number;
+  buyerMax: number;   // buyer ceiling per unit
+  sellerFloor: number; // seller floor per unit
+  gpu?: string;
+  buyerWallet?: string;
+  sellerWallet?: string;
+  buyerAgentId?: string;
+  sellerAgentId?: string;
+  buyerTimeoutMs?: number;
+  sellerTimeoutMs?: number;
+  forceDeterministic?: boolean;
 }
 
 async function postJson(url: string, body: unknown): Promise<any> {
@@ -38,63 +55,88 @@ async function postJson(url: string, body: unknown): Promise<any> {
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`POST ${url} -> ${res.status} ${text}`);
-  return JSON.parse(text);
-}
-
-interface DealRequest {
-  resource: string;
-  qty: number;
-  buyerMax: number;   // buyer ceiling per unit
-  sellerFloor: number; // seller floor per unit
-  gpu?: string;
+  return text ? JSON.parse(text) : {};
 }
 
 /** Run the whole intent -> match -> negotiate -> settle -> reputation loop. */
 async function runDeal(req: DealRequest) {
   const log: string[] = [];
-  const buyerId: PartyIdentity = { agentRegistry: REG, agentId: "ResearchBot", wallet: demoWallet("ab") };
-  const sellerId: PartyIdentity = { agentRegistry: REG, agentId: "GPUVendorAlpha", wallet: demoWallet("cd") };
+  const buyerIdentity = {
+    agentRegistry: REG,
+    agentId: req.buyerAgentId ?? "ResearchBot",
+    wallet: req.buyerWallet ?? buyerWalletDefault ?? demoWallet("ab"),
+  };
+  const sellerIdentity = {
+    agentRegistry: REG,
+    agentId: req.sellerAgentId ?? "GPUVendorAlpha",
+    wallet: req.sellerWallet ?? sellerWalletDefault ?? demoWallet("cd"),
+  };
   const requirements = req.gpu ? { gpu: req.gpu } : {};
 
-  const intent = await postJson(`${HTTP}/intents`, {
+  const intent = await postJson("http://localhost:3001/intents", {
     resource: req.resource, qty: req.qty, unit: "hour", maxUnitPrice: req.buyerMax,
-    requirements, ...buyerId,
+    requirements, ...buyerIdentity,
   });
   log.push(`Buyer intent posted: ${intent.intentId}`);
 
-  const offer = await postJson(`${HTTP}/offers`, {
+  const offer = await postJson("http://localhost:3001/offers", {
     resource: req.resource, unit: "hour", unitPrice: req.sellerFloor, terms: "per-hour billing",
-    requirements, ...sellerId,
+    requirements, ...sellerIdentity,
   });
   log.push(`Seller offer posted: ${offer.offerId}`);
 
   const match = intent.matched ? intent : offer.matched ? offer : null;
   if (!match || !match.matched) {
     log.push("No match — buyer max is below seller floor, or resource/requirements differ.");
-    return { matched: false, log };
+    return { matched: false, log, fallback: { kind: "no-match", message: "Adjust the input terms and rerun." } };
   }
   log.push(`MATCHED -> room ${match.roomId}`);
 
-  const buyerPolicy: NegotiationPolicy = { role: "buyer", price: req.buyerMax, qty: req.qty, terms: "per-hour", requirements };
-  const sellerPolicy: NegotiationPolicy = { role: "seller", price: req.sellerFloor, qty: req.qty, terms: "per-hour", requirements };
+  if (req.forceDeterministic) {
+    process.env.OPENROUTER_API_KEY = "";
+    process.env.OPENAI_API_KEY = "";
+  }
 
-  const [b] = await Promise.all([
-    negotiate(match.wssUrl, buyerPolicy, buyerId, { timeoutMs: 10000, log: (s) => log.push(`buyer: ${s}`) }),
-    negotiate(match.wssUrl, sellerPolicy, sellerId, { timeoutMs: 10000, log: (s) => log.push(`seller: ${s}`) }),
-  ]);
+  const buyerDeps: AgentDeps = {
+    wsUrl: match.wssUrl,
+    role: "buyer",
+    identity: buyerIdentity,
+    ctx: { price: req.buyerMax, qty: req.qty, terms: "per-hour billing", requirements, maxRounds: 6, minDelta: 0.00001, seed: 42, persona: "balanced" },
+    opts: { timeoutMs: req.buyerTimeoutMs ?? 120000, log: (s) => log.push(`buyer: ${s}`) },
+  };
+  const sellerDeps: AgentDeps = {
+    wsUrl: match.wssUrl,
+    role: "seller",
+    identity: sellerIdentity,
+    ctx: { price: req.sellerFloor, qty: req.qty, terms: "per-hour billing", requirements, maxRounds: 6, minDelta: 0.00001, seed: 42, persona: "cooperative" },
+    opts: { timeoutMs: req.sellerTimeoutMs ?? 120000, log: (s) => log.push(`seller: ${s}`) },
+  };
 
-  log.push(`Negotiation: ${b.kind}${b.unitPrice != null ? ` @ $${b.unitPrice}/unit x ${b.qty}` : ""}`);
-  await new Promise((r) => setTimeout(r, 400)); // let chain settle
+  const [b, s] = await Promise.all([runAgent(buyerDeps), runAgent(sellerDeps)]);
+  log.push(`Negotiation: buyer=${b.kind}${b.unitPrice != null ? ` @ ${b.unitPrice}` : ""}; seller=${s.kind}${s.unitPrice != null ? ` @ ${s.unitPrice}` : ""}`);
 
+  await new Promise((r) => setTimeout(r, 1200)); // let chain settle
+  const settlement = getLastSettlement(match.roomId);
   const buyerRep = reputation.getReputation("ResearchBot");
   const sellerRep = reputation.getReputation("GPUVendorAlpha");
+  const fallback =
+    b.kind === "deal-closed"
+      ? null
+      : {
+          kind: "no-deal",
+          message: "Negotiation hit the room limit or timed out. Widen the spread or switch to deterministic mode.",
+          suggestedAction: "Increase buyerMax or lower sellerFloor, then run again.",
+        };
 
   return {
     matched: true,
     result: b,
+    sellerResult: s,
+    settlement,
     total: b.unitPrice != null ? b.unitPrice * (b.qty ?? 0) : null,
     reputation: { ResearchBot: buyerRep, GPUVendorAlpha: sellerRep },
     log,
+    fallback,
   };
 }
 
@@ -127,6 +169,13 @@ async function main() {
             buyerMax: Number(parsed.buyerMax),
             sellerFloor: Number(parsed.sellerFloor),
             gpu: parsed.gpu || undefined,
+            buyerWallet: parsed.buyerWallet || undefined,
+            sellerWallet: parsed.sellerWallet || undefined,
+            buyerAgentId: parsed.buyerAgentId || undefined,
+            sellerAgentId: parsed.sellerAgentId || undefined,
+            buyerTimeoutMs: parsed.buyerTimeoutMs != null ? Number(parsed.buyerTimeoutMs) : undefined,
+            sellerTimeoutMs: parsed.sellerTimeoutMs != null ? Number(parsed.sellerTimeoutMs) : undefined,
+            forceDeterministic: Boolean(parsed.forceDeterministic),
           });
           httpRes.writeHead(200, { "content-type": "application/json", ...cors });
           httpRes.end(JSON.stringify(out));

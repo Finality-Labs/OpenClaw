@@ -4,6 +4,7 @@ import { Store } from "./store";
 import { Matchmaker } from "./matchmaker";
 import { registerRoutes } from "./routes";
 import { seed } from "./seed";
+import { PulseService } from "./pulse";
 
 export function buildApp() {
   const app = Fastify({ logger: false });
@@ -11,7 +12,8 @@ export function buildApp() {
 
   const store = new Store();
   const matchmaker = new Matchmaker(store);
-  registerRoutes(app, store, matchmaker);
+  const pulse = new PulseService(store, matchmaker);
+  registerRoutes(app, store, matchmaker, pulse);
 
   // Seed the artifact's example cast so a match is demonstrable on boot.
   seed(store);

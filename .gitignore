@@ -6,5 +6,7 @@ target/
 coverage/
 .env
 .env.local
+__pycache__/
+*.pyc
 data/
 .DS_Store

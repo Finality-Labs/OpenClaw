@@ -1,0 +1,22 @@
+{
+  "name": "@finality/negotiate-brain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.0",
+    "@langchain/openai": "^0.3.0",
+    "@langchain/langgraph": "^0.2.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "tsx": "^4.16.2",
+    "@types/node": "^20.14.0",
+    "vitest": "^1.6.0"
+  }
+}

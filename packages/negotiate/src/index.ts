@@ -20,7 +20,8 @@ interface JoinMsg {
 function getOrCreateRoom(roomId: string): Room {
   let room = rooms.get(roomId);
   if (!room) {
-    room = new Room(roomId, {}, (result) => {
+    const maxRounds = process.env.NEGOTIATE_MAX_ROUNDS ? Number(process.env.NEGOTIATE_MAX_ROUNDS) : undefined;
+    room = new Room(roomId, maxRounds ? { maxRounds } : {}, (result) => {
       void notifyDeal(result);
     });
     rooms.set(roomId, room);

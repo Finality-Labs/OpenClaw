@@ -11,11 +11,15 @@ export const MessageType = z.enum(["counteroffer", "accept", "reject", "close", 
 export type MessageType = z.infer<typeof MessageType>;
 
 // Counteroffer / accept payload shape (contract §4 + §5).
+// `argument` carries the agent's free-text reasoning ("why I'm at this price").
+// It is stored in the transcript and included in the keccak256 hash so the
+// *reasoning* behind a deal is part of the tamper-proof proof (negotiation §1).
 export const TermsSchema = z.object({
   unitPrice: z.number(),
   qty: z.number(),
   terms: z.string(),
   requirements: z.record(z.unknown()).optional(),
+  argument: z.string().optional(),
 });
 export type Terms = z.infer<typeof TermsSchema>;
 

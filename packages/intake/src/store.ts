@@ -21,8 +21,9 @@ export class Store {
     return id;
   }
   addOffer(o: Offer): string {
+    const offer: Offer = { active: true, registryVersion: 1, ...o };
     const id = nextId("offer");
-    this.offers.set(id, o);
+    this.offers.set(id, offer);
     return id;
   }
   createRoom(intentId: string, offerId: string): Room {
@@ -33,8 +34,34 @@ export class Store {
   getIntent(id: string) {
     return this.intents.get(id);
   }
-  getOffer(id: string) {
+  getOffer(id: string): Offer | undefined {
     return this.offers.get(id);
+  }
+  /** Re-assert an offer as ACTIVE (called by the pulse). Returns false if the
+   * offer does not exist. Does NOT change registryVersion. */
+  pulseOffer(offerId: string): boolean {
+    const o = this.offers.get(offerId);
+    if (!o) return false;
+    o.active = true;
+    return true;
+  }
+  /** Registry feed change: bump version so a watching seller agent reconnects. */
+  bumpRegistry(agentId: string): boolean {
+    let changed = false;
+    for (const o of this.offers.values()) {
+      if (o.agentId === agentId) {
+        o.registryVersion = (o.registryVersion ?? 1) + 1;
+        o.active = true; // a change makes the offer fresh/active again
+        changed = true;
+      }
+    }
+    return changed;
+  }
+  /** The registry-facing view of a seller's offer (what a seller agent polls). */
+  getOfferRegistryState(offerId: string): { active: boolean; registryVersion: number; offer: Offer } | undefined {
+    const o = this.offers.get(offerId);
+    if (!o) return undefined;
+    return { active: !!o.active, registryVersion: o.registryVersion ?? 1, offer: o };
   }
   getRoom(roomId: string) {
     return this.rooms.get(roomId);
